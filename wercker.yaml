@@ -1,0 +1,49 @@
+box:
+  id: alpine:3.6
+  cmd: /bin/sh
+
+# Build to obtain JDK 9 and maven
+build:
+  steps:
+    - script:
+      name: initialize
+      code: |
+        apk update
+        apk add wget
+        mkdir -p $WERCKER_OUTPUT_DIR/opt
+
+    - script:
+      name: install JDK 9 for alpine linux
+      code: |
+        wget -q http://download.java.net/java/jdk9-alpine/archive/177/binaries/jdk-9-ea+177_linux-x64-musl_bin.tar.gz
+        tar -x -f jdk-9-ea+177_linux-x64-musl_bin.tar.gz -C $WERCKER_OUTPUT_DIR/opt
+        rm jdk-9-ea+177_linux-x64-musl_bin.tar.gz
+
+    - script:
+      name: install maven
+      code: |
+        wget -q http://apache.claz.org/maven/maven-3/3.5.0/binaries/apache-maven-3.5.0-bin.tar.gz
+        tar -x -f apache-maven-3.5.0-bin.tar.gz -C $WERCKER_OUTPUT_DIR/opt
+        rm apache-maven-3.5.0-bin.tar.gz
+
+# Deploy chained from build pipeline to create a docker image
+deploy:
+  steps:
+    - script:
+      name: move binaries to /opt
+      code: |
+        mv $WERCKER_ROOT/opt /opt
+
+    - script:
+      name: cleanup build result
+      code: rm -rf $WERCKER_ROOT
+
+    - internal/docker-push:
+      disable-sync: true
+      username: $DH_USERNAME
+      password: $DH_PASSWORD
+      tag: $WERCKER_GIT_COMMIT
+      cmd: "/opt/jdk-9/bin/java -version"
+      env: "JAVA_HOME=/opt/jdk-9 MAVEN_HOME=/opt/apache-maven-3.5.0"
+      repository: eviking/alpine-jdk-9-maven
+      registry: https://dockerhub.com
